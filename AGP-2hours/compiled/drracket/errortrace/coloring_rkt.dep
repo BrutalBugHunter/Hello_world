@@ -1,0 +1,1 @@
+("6.8" ("c91650015d614190973f3bf71ae439efa2e4e736" . "53fcc44aea66a5bf5305d3abaa9dae27c0cf820c") #"/home/sharvik/Desktop/AGP-2hours/Polygon.rkt" #"/home/sharvik/Desktop/AGP-2hours/edge.rkt" #"/home/sharvik/Desktop/AGP-2hours/vertex.rkt" (collects #"errortrace" #"errortrace-key.rkt") (collects #"racket" #"main.rkt") (collects #"racket" #"runtime-config.rkt"))

@@ -1,0 +1,122 @@
+#lang racket
+(require "vertex.rkt")
+(require "edge.rkt")
+(require "Polygon.rkt")
+(require "coloring.rkt")
+(require data/gvector)
+(provide (all-defined-out))
+(define polygon%
+  (class object%
+    (super-new)
+    (init-field size)
+    (init-field vec )))
+
+(define vertex%
+  (class object%
+    (super-new)
+    (init-field x-coor)
+    (init-field y-coor)
+    
+    (define/public (vertex-ycoor) y-coor)
+    (define/public (vertex-xcoor) x-coor)))
+
+(define edge%
+  (class object%
+    (super-new)                                                         ;;;;;;;;;;;;;;;;counterclockwise
+    (init-field first-vertex)
+    (init-field second-vertex)
+    (init-field index-first-vertex-in-vertex-vector)
+    (init-field index-second-vertex-in-vertex-vector)
+    ))
+
+(define monotone%
+  (class polygon%
+    (super-new)
+    (inherit-field size vec)
+    (init-field edge-vec)))
+    
+
+(define node%
+  (class polygon%
+    (super-new)
+    (inherit-field size vec) 
+    (field [colored-count 0])
+    (field [not-colored-yet vec])   ;; vector of vertices initialized in super class
+    (field [colors-possible (if (= size 3) '(1 2 3) '(1 2 3 4))])))
+    
+(define vec1 '((1 0) (2 3)))
+(define vec2 '((2 0) (3 0)))
+(define vec3 '((2 0) (2 1)))
+
+
+
+
+(define (break-monotone-to-node monotone-polygon handler)
+  (let* [(ordered-vertices (send monotone-polygon (vec-sorted-by-y-indices)))       ;;ordered vertices is made up of indices sorted by y coor if y coor same then by x-coor
+         (right-points (get-points 1 (vec-sorted-by-y-indices)))
+         (left-points (get-points 0 (vec-sorted-by-y-indices)))
+         (reflex-left-points (get-reflex-points left-points))
+         (reflex-right-points (get-reflex-points  right-points))
+         (merge-reflex-points (merge reflex-left-points reflex-right-points))]
+    (define (helper rrl-index lll-index mrl-index list)
+      (if (= (+ mrl-index 2) (vector-length merge-reflex-points))
+          list
+          (if (= (vec-ref reflex-right-points rrl-index) (vec-ref merge-reflex-points mr-index))
+              (begin (set! list (cons (new node 4 (vec (vec-ref right-points (+ (* 2 rrl-index) 1))
+                                                       (vec-ref right-points (+ (* 2 rrl-index) 2))
+                                                       (vec-ref right-points (+ (* 2 rrl-index) 3))
+                                                       (vec-ref left-points (+ (* 2 lll-index) 1))))
+                                      list))
+                     (helper (+ rrl-index 1) lll-index (+ 1 mrl-index) list))
+              (= (vec-ref reflex-left-points lll-index) (vec-ref merge-reflex-points mr-index))
+              (begin (set! list (cons (new node 4 (vec (vec-ref left-points (+ (* 2 lll-index) 1))
+                                                       (vec-ref left-points (+ (* 2 lll-index) 2))
+                                                       (vec-ref left-points (+ (* 2 lll-index) 3))
+                                                       (vec-ref right-points (+ (* 2 rrl-index) 1))))
+                                      list))
+                     (helper rrl-index (+ lll-index 1) (+ 1 mrl-index) list)))))
+    (vector-append (helper 0 0 0 '()) (vec (new node 4 (vec (vec-ref right-points 0)
+                                                            (vec-ref left-points 0)
+                                                            (vec-ref left-points 1)
+                                                            (vec-ref right-points 1)))))))
+(define (get-points num vec)
+  (let* ((start-vertex1 (vector-ref vec 0))
+         (start-vertex2 (vector-ref vec 1)))
+        
+    (define (helper sign vertex index list)
+      (if (= (+ index 2) (vector-length vec))
+          (list->vector (reverse list))
+          (if (sign (send vertex xcoor) (send (vec-ref vec index ) xcoor))
+              (helper sign vertex (+ index 1) list)
+              (begin (set! list (cons (vec-ref vec index ) list))
+                     (helper sign vertex (+ index 1) list))))
+      (if (= num 1)
+          (let (start-right-vertex (get 1 start-vertex2 start-vertex1))
+            (helper > start-right-vertex 0 '()))
+          (let (start-left-vertex (get 0 start-vertex2 start-vertex1))
+            (helper < start-left-vertex 0 '()))))))
+
+(define (get num ver2 ver1)
+  (cond ((and (= num 1) (< (send ver1 xcoor) (send ver2 xcoor))) ver2)
+        ((and (= num 1) (> (send ver1 xcoor) (send ver2 xcoor))) ver1)
+        ((and (= num 0) (< (send ver1 xcoor) (send ver2 xcoor))) ver1)
+        ((and (= num 0) (< (send ver1 xcoor) (send ver2 xcoor))) ver2)))
+
+
+(define (get-reflex-points points)
+  (define (helper index list)
+    (if (<  index (vector-length points))
+        (helper (+ index 2) (cons (vec-ref points index) list))
+        (list->vector (reverse list))))
+  (helper 1 '()))
+
+  
+(define (merge reflex-left-points reflex-right-points)
+  (let ((without-sort-merge (vector-append reflex-right-points reflex-left-points)))
+    (define (vec-sorted-by-y-indices without-sort-merge)                                         ;;;  we need vertices sorted by y coordinate so there it is. Actualy it is
+      (vector-map                                                            ;;;;;;;;; index of the vectors in the vector vec
+       (λ(x) (cdr x))                                        ;;;;; Contact 8291446857
+       (vector-sort
+        (list->vector (zip (vector->list without-sort-merge) (list-upto size)))
+        > 0 (vector-length without-sort-merge) #:key (lambda(x) (send (car x) vertex-ycoor)))))
+    (vec-sorted-by-y-indices without-sort-merge)))
